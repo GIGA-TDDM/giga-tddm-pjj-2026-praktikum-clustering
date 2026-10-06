@@ -1,0 +1,58 @@
+name: Inisialisasi repositori
+
+# Menyesuaikan tautan GitHub dan Colab dengan repositori tempat workflow ini
+# berjalan, lalu commit hasilnya.
+#
+# PENTING: job ini sengaja TIDAK berjalan di repositori template. Bila ia
+# berjalan di sana, placeholder akan diganti dengan nama repositori template
+# dan ikut tersalin ke seluruh repositori mahasiswa: badge mereka akan
+# menunjuk template, bukan repositori masing-masing.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # Nama repositori template. Dipakai untuk memperbaiki repositori yang
+  # terlanjur memuat nama template pada badge-nya.
+  TEMPLATE_SLUG: GIGA-TDDM/giga-tddm-pjj-2026-praktikum-clustering
+
+jobs:
+  init:
+    # Jangan pernah berjalan di repositori template itu sendiri.
+    if: github.event.repository.is_template != true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Sesuaikan tautan
+        id: sesuaikan
+        run: |
+          set -euo pipefail
+          python tools/sesuaikan_tautan.py \
+            --slug '${{ github.repository }}' \
+            --name '${{ github.event.repository.name }}' \
+            --template "$TEMPLATE_SLUG" | tee /tmp/keluaran.txt
+          if grep -q '^disesuaikan:' /tmp/keluaran.txt; then
+            echo "berubah=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "berubah=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit
+        if: steps.sesuaikan.outputs.berubah == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --staged --quiet || git commit -m 'chore: sesuaikan tautan Colab dan GitHub dengan repositori ini [skip ci]'
+          git push
